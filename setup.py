@@ -28,7 +28,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.0.0',
+    version='1.0.1',
 
     description='Moesif Middleware for AIOHTTP',
     long_description=long_description,
@@ -80,13 +80,13 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
-        'moesifapi>=1.4.4',
-        'aiohttp==3.9.2',
-        'aiohttp-sse==2.1.0',
-        'aiohttp-sse-client2==0.3.0',
-        'asyncio==3.4.3',
-        'gunicorn==20.1.0',
-        'readerwriterlock==1.0.9'
+        'moesifapi>=1.4.5',
+        'aiohttp>=3.8.3',
+        'aiohttp-sse>=2.1.0',
+        'aiohttp-sse-client2>=0.3.0',
+        'asyncio>=3.4.3',
+        'gunicorn>=20.1.0',
+        'readerwriterlock>=1.0.9'
     ],
 
     # List additional groups of dependencies here (e.g. development
