@@ -48,7 +48,6 @@ class EventMapper:
             except Exception as e:
                 if debug:
                     logger.error(f"Error while parsing the request body: {str(e)}")
-                pass
 
         # Prepare Event Request Model
         return EventRequestModel(time=request_time,
@@ -79,7 +78,6 @@ class EventMapper:
             except Exception as e:
                 if debug:
                     logger.error(f"Error while parsing the response body: {str(e)}")
-                pass
 
         return EventResponseModel(time=response_time,
                                 status=response.status,
