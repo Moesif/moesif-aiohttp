@@ -12,11 +12,26 @@ from moesifapi.update_users import User
 from .logger_helper import LoggerHelper
 from .event_mapper import EventMapper
 from aiohttp import web
+from aiohttp_sse import EventSourceResponse
 import logging
 import atexit
 import random
 import math
 import aiohttp_sse
+
+
+# Monkey patch the send method of EventSourceResponse
+sent_data = []
+async def moesif_send(self, data, event=None):
+    # Append the data to the sent_data list
+    sent_data.append(data)
+
+    # Call the original send method
+    await self._send(data, event=event)
+
+# Monkey patch the send method of EventSourceResponse
+EventSourceResponse._send = EventSourceResponse.send
+EventSourceResponse.send = moesif_send
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +138,9 @@ class MoesifMiddleware:
         else:
             response = await handler(request)
 
-        # Prepare Event Response Model
-        event_response = self.event_mapper.to_response(response, self.LOG_BODY)
+        event_response = self.event_mapper.to_response(response, self.LOG_BODY, sent_data)
+        # Clear the sent_data list after the request
+        sent_data.clear()
 
         # Add user, company, session_token, and metadata
         user_id = self.logger_helper.get_user_id(self.settings, request, response, self.DEBUG)
