@@ -120,7 +120,7 @@ class MoesifMiddleware:
     async def __call__(self, request, handler):
 
         # Prepare Event Request Model
-        event_request = await self.event_mapper.to_request(request, self.LOG_BODY)
+        event_request = await self.event_mapper.to_request(request, self.LOG_BODY, self.DEBUG)
 
         governed_response = {}
         if self.config.have_governance_rules():
@@ -138,7 +138,7 @@ class MoesifMiddleware:
         else:
             response = await handler(request)
 
-        event_response = self.event_mapper.to_response(response, self.LOG_BODY, sent_data)
+        event_response = self.event_mapper.to_response(response, self.LOG_BODY, sent_data, self.DEBUG)
         # Clear the sent_data list after the request
         sent_data.clear()
 

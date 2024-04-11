@@ -32,7 +32,7 @@ class EventMapper:
                         direction="Incoming",
                         blocked_by=blocked_by)
 
-    async def to_request(self, request, log_body):
+    async def to_request(self, request, log_body, debug):
         request_time = self.get_utc_now()
 
         # convert headers (multiDictProxy class) into dict
@@ -46,6 +46,8 @@ class EventMapper:
                     request_text = await request.read()
                     req_body, req_transfer_encoding = self.parse_body.parse_bytes_body(request_text, None, req_headers)
             except Exception as e:
+                if debug:
+                    logger.error(f"Error while parsing the request body: {str(e)}")
                 pass
 
         # Prepare Event Request Model
@@ -58,7 +60,7 @@ class EventMapper:
                                 body=req_body,
                                 transfer_encoding=req_transfer_encoding)
 
-    def to_response(self, response, log_body, sent_data):
+    def to_response(self, response, log_body, sent_data, debug):
         response_time = self.get_utc_now()
 
         # convert headers (multiDictProxy class) into dict
@@ -75,6 +77,8 @@ class EventMapper:
                     rsp_text = response.text
                     rsp_body, rsp_transfer_encoding = self.parse_body.parse_string_body(rsp_text, None, rsp_headers)
             except Exception as e:
+                if debug:
+                    logger.error(f"Error while parsing the response body: {str(e)}")
                 pass
 
         return EventResponseModel(time=response_time,
