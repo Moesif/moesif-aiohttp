@@ -13,6 +13,7 @@ from .logger_helper import LoggerHelper
 from .event_mapper import EventMapper
 from aiohttp import web
 from aiohttp_sse import EventSourceResponse
+from functools import wraps
 import logging
 import atexit
 import random
@@ -20,18 +21,30 @@ import math
 import aiohttp_sse
 
 
+def moesif_send(func):
+    _mo_body = []
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        kwargs["_mo_body"] = _mo_body
+        # Call the original async function
+        result = await func(*args, **kwargs)
+        return result
+
+    return wrapper
+
 # Monkey patch the send method of EventSourceResponse
-sent_data = []
-async def moesif_send(self, data, event=None):
-    # Append the data to the sent_data list
-    sent_data.append(data)
+@moesif_send
+async def custom_send(self, data, event=None, _mo_body=[]):
+    if event == "done":
+        self._mo_body = _mo_body
+    _mo_body.append(data)
 
     # Call the original send method
     await self._send(data, event=event)
 
 # Monkey patch the send method of EventSourceResponse
 EventSourceResponse._send = EventSourceResponse.send
-EventSourceResponse.send = moesif_send
+EventSourceResponse.send = custom_send
 
 logger = logging.getLogger(__name__)
 
@@ -138,9 +151,14 @@ class MoesifMiddleware:
         else:
             response = await handler(request)
 
-        event_response = self.event_mapper.to_response(response, self.LOG_BODY, sent_data, self.DEBUG)
-        # Clear the sent_data list after the request
-        sent_data.clear()
+        # Prepare the event response body
+        event_response = self.event_mapper.to_response(response, self.LOG_BODY, getattr(response, '_mo_body', None), self.DEBUG)
+        # Clear the response._mo_body list after the request
+        try:
+            if "_mo_body" in response:
+                response._mo_body.clear()
+        except Exception as e:
+            pass
 
         # Add user, company, session_token, and metadata
         user_id = self.logger_helper.get_user_id(self.settings, request, response, self.DEBUG)
