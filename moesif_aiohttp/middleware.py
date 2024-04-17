@@ -12,11 +12,56 @@ from moesifapi.update_users import User
 from .logger_helper import LoggerHelper
 from .event_mapper import EventMapper
 from aiohttp import web
+from aiohttp_sse import EventSourceResponse
+from aiohttp.web_response import Response, StreamResponse
 import logging
 import atexit
 import random
 import math
 import aiohttp_sse
+import json
+
+# Override the write method of StreamResponse for API logging
+async def custom_write(self, data, _mo_body=[]):
+    # The data is of type bytes, so converting it to string
+    decoded_data = data.decode("utf-8")
+    # When the response is of type StreamResponse, the data: stream is already processed by the send method,
+    # so avoid it to process data: stream multiple time
+    if "data:" not in decoded_data:
+        # Create the _mo_body if it doesn't exist and add the decoded_data to the list
+        # else keep appending decoded_data to an existing _mo_body list
+        try:
+            self._mo_body.append(decoded_data)
+        except Exception as e:
+            self._mo_body = [decoded_data]
+
+    # Call the original send method
+    await self.original_write(data)
+
+
+StreamResponse.original_write = StreamResponse.write
+StreamResponse.write = custom_write
+
+# Override the send method of EventSourceResponse for API logging
+async def custom_send(self, data, event=None, _mo_body=[]):
+    # Try to convert to json object and if couldn't use it as it is
+    json_data = None
+    try:
+        json_data = json.loads(data)
+    except Exception as e:
+        json_data = data
+
+    # Create the _mo_body if it doesn't exist and add the json_data to the list
+    # else keep appending json_data to an existing _mo_body list
+    try:
+        self._mo_body.append(json_data)
+    except Exception as e:
+        self._mo_body = [json_data]
+    # Call the original send method
+    await self._send(data, event=event)
+
+EventSourceResponse._send = EventSourceResponse.send
+EventSourceResponse.send = custom_send
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +150,7 @@ class MoesifMiddleware:
     async def __call__(self, request, handler):
 
         # Prepare Event Request Model
-        event_request = await self.event_mapper.to_request(request, self.LOG_BODY)
+        event_request = await self.event_mapper.to_request(request, self.LOG_BODY, self.DEBUG)
 
         governed_response = {}
         if self.config.have_governance_rules():
@@ -123,8 +168,14 @@ class MoesifMiddleware:
         else:
             response = await handler(request)
 
-        # Prepare Event Response Model
-        event_response = self.event_mapper.to_response(response, self.LOG_BODY)
+        # Prepare the event response body
+        event_response = self.event_mapper.to_response(response, self.LOG_BODY, getattr(response, '_mo_body', None), self.DEBUG)
+        # Clear the response._mo_body list after the request
+        try:
+            if "_mo_body" in response:
+                response._mo_body.clear()
+        except Exception as e:
+            pass
 
         # Add user, company, session_token, and metadata
         user_id = self.logger_helper.get_user_id(self.settings, request, response, self.DEBUG)
