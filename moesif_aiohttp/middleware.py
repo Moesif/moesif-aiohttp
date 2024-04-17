@@ -13,36 +13,53 @@ from .logger_helper import LoggerHelper
 from .event_mapper import EventMapper
 from aiohttp import web
 from aiohttp_sse import EventSourceResponse
-from functools import wraps
+from aiohttp.web_response import Response, StreamResponse
 import logging
 import atexit
 import random
 import math
 import aiohttp_sse
+import json
+
+# Monkey patch the write method of StreamResponse
+async def custom_write(self, data, _mo_body=[]):
+    # The data is of type bytes, so converting it to string
+    decoded_data = data.decode("utf-8")
+    # When the response is of type StreamResponse, the data: stream is already processed by the send method,
+    # so avoid it to process data: stream multiple time
+    if "data:" not in decoded_data:
+        # Create the _mo_body if it doesn't exist and add the decoded_data to the list
+        # else keep appending decoded_data to an existing _mo_body list
+        try:
+            self._mo_body.append(decoded_data)
+        except Exception as e:
+            self._mo_body = [decoded_data]
+
+    # Call the original send method
+    await self.original_write(data)
 
 
-def moesif_send(func):
-    _mo_body = []
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        kwargs["_mo_body"] = _mo_body
-        # Call the original async function
-        result = await func(*args, **kwargs)
-        return result
-
-    return wrapper
+StreamResponse.original_write = StreamResponse.write
+StreamResponse.write = custom_write
 
 # Monkey patch the send method of EventSourceResponse
-@moesif_send
 async def custom_send(self, data, event=None, _mo_body=[]):
-    if event == "done":
-        self._mo_body = _mo_body
-    _mo_body.append(data)
+    # Try to convert to json object and if couldn't use it as it is
+    json_data = None
+    try:
+        json_data = json.loads(data)
+    except Exception as e:
+        json_data = data
 
+    # Create the _mo_body if it doesn't exist and add the json_data to the list
+    # else keep appending json_data to an existing _mo_body list
+    try:
+        self._mo_body.append(json_data)
+    except Exception as e:
+        self._mo_body = [json_data]
     # Call the original send method
     await self._send(data, event=event)
 
-# Monkey patch the send method of EventSourceResponse
 EventSourceResponse._send = EventSourceResponse.send
 EventSourceResponse.send = custom_send
 
