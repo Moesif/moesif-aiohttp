@@ -21,7 +21,7 @@ import math
 import aiohttp_sse
 import json
 
-# Monkey patch the write method of StreamResponse
+# Override the write method of StreamResponse for API logging
 async def custom_write(self, data, _mo_body=[]):
     # The data is of type bytes, so converting it to string
     decoded_data = data.decode("utf-8")
@@ -42,7 +42,7 @@ async def custom_write(self, data, _mo_body=[]):
 StreamResponse.original_write = StreamResponse.write
 StreamResponse.write = custom_write
 
-# Monkey patch the send method of EventSourceResponse
+# Override the send method of EventSourceResponse for API logging
 async def custom_send(self, data, event=None, _mo_body=[]):
     # Try to convert to json object and if couldn't use it as it is
     json_data = None
